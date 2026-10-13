@@ -81,7 +81,7 @@
     plate.rotation.x = -Math.PI / 2; plate.position.y = -.02; g.add(plate);
     const bins = [];
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      const b = block(.9, 1, .9, P.sky, P.g6, .85); b.position.set((c - 1.5) * 1.35, 0, (r - 1) * 1.4); g.add(b);
+      const b = block(.9, 1, .9, 0x1f3d7a, P.ink, .9); b.position.set((c - 1.5) * 1.35, 0, (r - 1) * 1.4); g.add(b);
       const ring = new T.Mesh(new T.RingGeometry(.62, .68, 32), new T.MeshBasicMaterial({ color: P.ink, transparent: true, opacity: 0, side: T.DoubleSide }));
       ring.rotation.x = -Math.PI / 2; ring.position.set(b.position.x, .01, b.position.z); g.add(ring);
       bins.push({ b, ring, v: 5 + Math.floor(R() * 4), shown: 5, x: b.position.x, z: b.position.z });
@@ -108,7 +108,7 @@
         const h = Math.max(.06, b.shown * HS);
         b.b.scale.y = h; b.b.position.y = h / 2;
         const low = b.v <= MIN;
-        tint(b.b.body.material, P.sky, P.ink, low ? .9 : 0);
+        tint(b.b.body.material, 0x1f3d7a, 0x061331, low ? .95 : 0);
         b.ring.material.opacity = low ? .35 + .35 * Math.sin(t * 6 + i) : 0;
       });
       g.rotation.y = m.x * .3; g.rotation.x = m.y * .06;
@@ -167,7 +167,7 @@
     const out = spec.map(() => []);
     const nodes = spec.map(([name, x, y, kind], i) => {
       let nd;
-      if (kind === 'cyl') { nd = new T.Group(); const c = new T.Mesh(new T.CylinderGeometry(.26, .26, .3, 24), solid(P.white)); c.rotation.x = Math.PI / 2; nd.add(c, new T.LineSegments(new T.EdgesGeometry(c.geometry, 20), lineM(P.g5, .9))); nd.rotation.y = 0; nd.body = c; }
+      if (kind === 'cyl') { nd = new T.Group(); const cg = new T.CylinderGeometry(.26, .26, .3, 32); cg.rotateX(Math.PI / 2); const c = new T.Mesh(cg, solid(P.white)); nd.add(c, new T.LineSegments(new T.EdgesGeometry(cg, 40), lineM(P.g5, .9))); nd.rotation.y = 0; nd.body = c; }
       else if (kind === 'dia') { const geo = new T.OctahedronGeometry(.34); nd = new T.Group(); const c = new T.Mesh(geo, solid(P.white)); nd.add(c, new T.LineSegments(new T.EdgesGeometry(geo), lineM(P.g5, .9))); nd.body = c; }
       else if (kind === 'sph') { const geo = new T.SphereGeometry(.3, 22, 16); nd = new T.Group(); const c = new T.Mesh(geo, solid(P.white)); nd.add(c, new T.LineSegments(new T.EdgesGeometry(geo, 20), lineM(P.g5, .7))); nd.body = c; }
       else { nd = block(.5, .34, .26, P.white, P.g5, .85); }

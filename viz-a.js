@@ -143,6 +143,7 @@
     const W = { cloud: 1, morph: 0, desc: 0, gal: 0 }; let FW = 0, ft = 0, gt = 0;
     return (t, dt, m, S) => {
       const k = (r) => 1 - Math.exp(-dt * r), step = S.step;
+      cam.userData.dy += ([-.046, .102, 0][step] - cam.userData.dy) * k(3);   // centra el contenido de cada paso en el escenario
       W.cloud += ((step === 0 ? 1 : 0) - W.cloud) * k(2.2);
       W.morph += ((step >= 1 ? 1 : 0) - W.morph) * k(1.3);
       W.desc += ((step === 1 ? 1 : 0) - W.desc) * k(2.2);
@@ -231,7 +232,7 @@
   // los n−1 fotogramas siguientes (heredan la decisión) y las detecciones cercanas se agrupan en una sola notificación.
   add('cnn', () => {
     const { scene } = base({ cam: [0, 0, 9.5], look: [0, 0, 0], aspect: 1.7 });
-    const NFR = 15, STEP = 3, NCHK = 5, RW = 480, RH = 300, QW = 640, QH = 400, rdr = window.Viz.renderer, VIOL = (i) => i >= 3 && i <= 10;
+    const NFR = 15, STEP = 3, NCHK = 5, RW = 480, RH = 300, QW = 640, QH = 400, rdr = window.Viz.renderer, VIOL = (i) => i >= 3 && i <= 11;   // la pelea ocupa bloques completos de 3 fotogramas (4 al 12), así lo que se censura es realmente violento
     // ----- escena 3D de la que salen los fotogramas -----
     const fs2 = new T.Scene(), fc = new T.PerspectiveCamera(21, RW / RH, .1, 60); fc.position.set(0, 1.25, 8.4); fc.lookAt(0, 1.05, 0); fc.updateMatrixWorld(true); fc.updateProjectionMatrix();
     fs2.add(new T.AmbientLight(0xffffff, .85)); const sun = new T.DirectionalLight(0xffffff, .5); sun.position.set(-3, 6, 5); fs2.add(sun);
@@ -248,13 +249,13 @@
     box(80, .16, .12, 0xffffff, 0, -.06, -3.62);
     for (let x = -16; x <= 16; x += 1.6) box(.8, .012, .1, 0xffffff, x, -.113, -2.25);            // rayas de la carretera
     for (let x = -2.4; x <= 2.41; x += .6) box(.32, .012, 2.3, 0xffffff, x, -.113, -2.25);       // paso peatonal
-    for (let zz = -.5; zz <= 2.6; zz += 1.24) box(80, .006, .012, 0xffffff, 0, .003, zz);        // baldosas de la acera (líneas a lo largo)
-    for (let xx = -12; xx <= 12; xx += 1.24) box(.012, .006, 3.6, 0xffffff, xx, .003, 1.0);      // baldosas (líneas transversales)
+    for (let zz = -.5; zz <= 2.6; zz += 1.55) box(26, .006, .012, 0xffffff, 0, .003, zz);        // baldosas de la acera (líneas a lo largo)
+    for (let xx = -13; xx <= 13; xx += 1.6) box(.012, .006, 3.6, 0xffffff, xx, .003, 1.0);      // baldosas (líneas transversales)
     for (let bx = -10; bx <= 10; bx += 1.5) { cyl(.06, .07, .6, bx, .3, -.72); ball(.07, bx, .64, -.72); }   // bolardos
     // planteras con arbustos
-    [-6, -3.9, 3.9, 6].forEach((x) => { box(1.0, .5, .5, 0xffffff, x, .25, 2.35); [-.3, 0, .3].forEach((o, i) => ball(.26 - i % 2 * .04, x + o, .72 + i % 2 * .05, 2.35)); });
+    [-5.6, -3.4, 3.4, 5.6].forEach((x) => { box(1.0, .5, .5, 0xffffff, x, .25, -.5); [-.3, 0, .3].forEach((o, i) => ball(.26 - i % 2 * .04, x + o, .72 + i % 2 * .05, -.5)); });
     // bancas
-    [-2.3, 2.3].forEach((x) => { box(1.3, .08, .42, 0xffffff, x, .5, 2.2); box(1.3, .4, .06, 0xffffff, x, .8, 2.0); [-.55, .55].forEach((o) => box(.08, .5, .38, 0xffffff, x + o, .25, 2.2)); });
+    [-1.9, 1.9].forEach((x) => { box(1.3, .08, .42, 0xffffff, x, .5, -.2); box(1.3, .4, .06, 0xffffff, x, .8, -.4); [-.55, .55].forEach((o) => box(.08, .5, .38, 0xffffff, x + o, .25, -.2)); });
     // edificio principal con arcos, pilastras, balcones y cornisa con dentículos
     const wallZ = -6.2;
     box(46, 6.4, .8, 0xffffff, 0, 3.1, wallZ);
@@ -295,7 +296,7 @@
       [[0, 1.75, 0, .62], [.34, 1.45, .1, .42], [-.34, 1.5, -.1, .45], [0, 2.15, .1, .4]].forEach(([a, b, e, r]) => { const m = new T.Mesh(new T.SphereGeometry(r * s, 16, 12), mat(0xffffff)); m.position.set(a * s, b * s, e * s); g.add(m); });
       g.position.set(x, 0, z); put(g);
     };
-    for (let i = 0, x = -12; x <= 12.1; i++, x += 1.25) { const z = -4.25 - (i % 2) * .75, s = 1.15 + .25 * ((i * 7) % 3) / 2; (i % 3 === 1 ? round(x, z, s) : pine(x, z, s)); }
+    for (let i = 0, x = -12; x <= 12.1; i++, x += 2.1) { const z = -4.3 - (i % 2) * 1.0, s = 1.05 + .2 * ((i * 7) % 3) / 2; (i % 3 === 1 ? round(x, z, s) : pine(x, z, s)); }
     for (let hx = -10; hx <= 10; hx += 2.4) { box(1.7, .5, .5, 0xffffff, hx, .25, -5.6); ball(.3, hx - .4, .6, -5.6); ball(.3, hx + .4, .6, -5.6); ball(.34, hx, .66, -5.6); }
     // farolas ornamentales
     [-5.4, -1.1, 1.1, 5.4, -9, 9].forEach((x) => {
@@ -346,11 +347,11 @@
     const poseAt = (s) => {
       let ax, bx, aa, ab, aL = -.15, bL = .1, la = 0, lb = 0, st;
       if (s < .2) { const w = s / .2; ax = lerp(-2.4, -.9, w); bx = lerp(2.3, .5, w); aa = .1 + .2 * Math.sin(s * 60); ab = .1 - .15 * Math.sin(s * 60); st = .4 * Math.sin(s * 60); }
-      else if (s < .72) { const k = (s - .2) / .52; ax = -.9 + .1 * Math.sin(s * 28); bx = .5 + .32 * smooth(k * 1.6); aa = 1.3 + .4 * Math.sin(s * 50); ab = 1.0 + .2 * Math.sin(s * 35); aL = -.3; bL = .9; la = .22 + .05 * Math.sin(s * 50); lb = .12 + .3 * smooth(k); st = .12 * Math.sin(s * 40); }
-      else { const w = (s - .72) / .28, q = Math.min(1, w * 4), q3 = Math.min(1, w * 3); ax = lerp(-.9, -2.2, w); bx = lerp(.82, 2.0, w); aa = lerp(1.3, .1, q); ab = lerp(1.0, .1, q); la = lerp(.22, 0, q); lb = lerp(.42, 0, q3); bL = lerp(.9, .1, q3); st = .35 * Math.sin(s * 60); }
+      else if (s < .8) { const k = (s - .2) / .6; ax = -.9 + .1 * Math.sin(s * 28); bx = .5 + .32 * smooth(k * 1.6); aa = 1.3 + .4 * Math.sin(s * 50); ab = 1.0 + .2 * Math.sin(s * 35); aL = -.3; bL = .9; la = .22 + .05 * Math.sin(s * 50); lb = .12 + .3 * smooth(k); st = .12 * Math.sin(s * 40); }
+      else { const w = (s - .8) / .2, q = Math.min(1, w * 4), q3 = Math.min(1, w * 3); ax = lerp(-.9, -2.2, w); bx = lerp(.82, 2.0, w); aa = lerp(1.3, .1, q); ab = lerp(1.0, .1, q); la = lerp(.22, 0, q); lb = lerp(.42, 0, q3); bL = lerp(.9, .1, q3); st = .35 * Math.sin(s * 60); }
       midX = (ax + bx) / 2; A.position.x = ax; B.position.x = bx; A.armR.rotation.z = aa; B.armR.rotation.z = ab; A.armL.rotation.z = aL; B.armL.rotation.z = bL;
       A.legL.rotation.z = st; A.legR.rotation.z = -st; B.legL.rotation.z = -st; B.legR.rotation.z = st;
-      const fight = s >= .2 && s < .72, pu = .5 - .5 * Math.sin(s * 50), pu2 = .5 - .5 * Math.sin(s * 35);
+      const fight = s >= .2 && s < .8, pu = .5 - .5 * Math.sin(s * 50), pu2 = .5 - .5 * Math.sin(s * 35);
       A.armR.el.rotation.z = fight ? .95 * pu : .18 + .12 * Math.sin(s * 60); A.armL.el.rotation.z = fight ? .5 : .15;
       B.armR.el.rotation.z = fight ? .6 + .5 * pu2 : .15; B.armL.el.rotation.z = fight ? 1.0 : .15;
       [A.legL, A.legR, B.legL, B.legR].forEach((l) => { l.el.rotation.z = -Math.abs(st) * 1.1 - .04; });
@@ -373,7 +374,7 @@
     // cámara de grabación en movimiento continuo: sigue a los personajes, los rodea con un vaivén, se acerca durante la pelea, tiembla un poco y se aleja al final
     const _p = new T.Vector3(), _l = new T.Vector3();
     const camPose = (s) => {
-      const f = smooth(clamp((s - .15) / .1)) * (1 - smooth(clamp((s - .72) / .1)));       // 1 mientras dura la pelea
+      const f = smooth(clamp((s - .15) / .1)) * (1 - smooth(clamp((s - .8) / .1)));       // 1 mientras dura la pelea
       const az = lerp(-.32, .38, smooth(s)) + .16 * Math.sin(s * 7.5) * (.4 + f);
       const R = lerp(8.8, 8.0, s) - 1.9 * f + .28 * Math.sin(s * 11);
       const h = 1.15 + .4 * f + .12 * Math.sin(s * 9 + 1) + .02 * Math.sin(s * 83) * f;     // temblor de cámara en mano
@@ -426,7 +427,7 @@
       const sc = SC.map((s) => {
         const cells = [];
         for (let y = 0; y < s.ny; y++) for (let x = 0; x < s.nx; x++) {
-          const h = conf(mask, x / s.nx, 1 - (y + 1) / s.ny, (x + 1) / s.nx, 1 - y / s.ny), c = VIOL(i) ? h / (s.nx === 1 ? .12 : .2) : h * 1.2 + .04 * ((x * 7 + y * 3 + i) % 3);
+          const h = conf(mask, x / s.nx, 1 - (y + 1) / s.ny, (x + 1) / s.nx, 1 - y / s.ny), c = VIOL(i) ? h / (s.nx === 1 ? .12 : .2) : h * .5 + .04 * ((x * 7 + y * 3 + i) % 3);   // sin violencia la CNN da confianzas bajas aunque haya personas
           cells.push({ c: Math.min(1, c) });
         }
         return { cells, max: Math.max(...cells.map((c) => c.c)), thr: s.thr };

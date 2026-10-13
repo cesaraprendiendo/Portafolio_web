@@ -152,6 +152,7 @@
     if (f) {
       try {
         const r = f();
+        last.cam.userData.dy = (window.VIZ_DY && window.VIZ_DY[name]) || 0;
         inst = { scene: last.scene, cam: last.cam, t: 0, mats: null, S: { step: it.cur, st: 0 }, update: typeof r === 'function' ? r : (r && r.update) || (() => {}) };
         if (reduce) for (let i = 0; i < 140; i++) { inst.t += .05; inst.update(inst.t, .05, it.m, inst.S); }
       } catch (err) { console.error('viz', name, err); }
@@ -176,7 +177,9 @@
   function draw(inst, x, yTop, w, h, f, zf, roll) {
     const cam = inst.cam, asp = w / h, yb = VH - (yTop + h);
     renderer.setViewport(x, yb, w, h); renderer.setScissor(x, yb, w, h);
-    if (cam.view && cam.view.enabled) cam.clearViewOffset();
+    // centrado vertical por escena (fracción del alto del recuadro): se mide para que el contenido quede al centro del escenario
+    const dy = cam.userData.dy || 0;
+    if (dy) cam.setViewOffset(w, h, 0, -dy * h, w, h); else if (cam.view && cam.view.enabled) cam.clearViewOffset();
     cam.aspect = asp; cam.zoom = Math.min(1, asp / cam.userData.aspect) * zf; cam.updateProjectionMatrix();
     const fade = f < .999;
     if (fade) fadeOn(inst, f);

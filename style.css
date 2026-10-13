@@ -41,7 +41,6 @@ main, .footer { position: relative; }
   padding: 16px clamp(18px, 4vw, 48px); background: rgba(255, 255, 255, .86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid transparent; transition: transform .5s var(--ease), border-color .3s;
 }
-.nav.hide { transform: translateY(-100%); }
 .nav.line { border-bottom-color: var(--line); }
 .brand { font-family: var(--serif); font-weight: 600; font-size: 24px; text-decoration: none; letter-spacing: -.02em; }
 .brand i { font-style: normal; color: var(--blue); }
@@ -111,7 +110,7 @@ h2 em { color: var(--blue); }
 .viz { position: relative; width: 100%; aspect-ratio: 4 / 3; }
 .viz.sq { aspect-ratio: 1 / 1; }
 .seq { display: grid; grid-template-columns: 1.3fr 1fr; gap: clamp(24px, 5vw, 72px); align-items: start; --stage-h: min(74vh, 640px); }
-.stage { position: sticky; top: calc(50vh - var(--stage-h) / 2 + 20px); height: var(--stage-h); z-index: 4; }
+.stage { position: sticky; top: max(88px, calc(50vh - var(--stage-h) / 2)); height: var(--stage-h); z-index: 4; }   /* nunca debajo de la barra superior */
 .seq-viz { width: 100%; height: 100%; }
 .steps { position: relative; z-index: 3; }
 .step { min-height: 62vh; display: flex; align-items: center; opacity: .28; transform: translateX(10px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
@@ -119,7 +118,7 @@ h2 em { color: var(--blue); }
 .step .pt-body { padding: 0; max-width: 460px; }
 @media (max-width: 900px) {
   .seq { grid-template-columns: 1fr; gap: 0; --stage-h: 42vh; }
-  .stage { top: 58px; background: var(--sec-bg, var(--bg)); height: var(--stage-h); }
+  .stage { top: 74px; background: var(--sec-bg, var(--bg)); height: var(--stage-h); }
   .step { min-height: 52vh; align-items: flex-start; padding-top: 36px; }
 }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -154,9 +153,7 @@ h2 em { color: var(--blue); }
 /* ---------- Contacto ---------- */
 .contact { position: relative; padding: clamp(80px, 11vw, 150px) clamp(20px, 5vw, 64px); background: var(--bg-alt); border-top: 1px solid var(--line); }
 .contact-grid { display: block; }
-.contact-in { max-width: min(560px, 48%); position: relative; z-index: 6; }
-.contact-viz { position: absolute; top: 0; bottom: 0; right: 0; width: 52%; }
-@media (max-width: 900px) { .contact-in { max-width: none; } .contact-viz { position: relative; width: min(100%, 460px); aspect-ratio: 1; margin: 36px auto 0; } }
+.contact-in { max-width: 640px; margin: 0 auto; position: relative; z-index: 6; }
 .mail { display: inline-block; margin-top: 26px; font-family: var(--serif); font-size: clamp(20px, 2.4vw, 30px); letter-spacing: -.02em; text-decoration: none; color: var(--blue); border-bottom: 2px solid var(--blue-2); transition: border-color .25s; word-break: break-word; }
 .mail:hover { color: var(--ink); border-color: var(--ink); }
 .contact-line { margin-top: 14px; font-family: var(--mono); font-size: 13.5px; color: var(--muted); }
@@ -191,10 +188,6 @@ h2 em { color: var(--blue); }
 
 
 /* ---------- Slidebox de avance (sin números) ---------- */
-.slidebox { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); width: min(300px, 62%); height: 22px; display: flex; align-items: center; z-index: 6; cursor: pointer; --n: 3; --p: 0; }
-.slidebox::before { content: ''; position: absolute; left: 0; right: 0; height: 5px; border-radius: 5px; background: var(--line-strong); }
-.slidebox i { position: absolute; left: 0; height: 5px; border-radius: 5px; background: var(--blue); width: calc(100% / var(--n)); transform: translateX(calc(var(--p) * (var(--n) - 1) * 100%)); transition: transform .25s linear; }
-.slidebox:hover::before { background: var(--faint); opacity: .6; }
 ol, ul { list-style: none; }
 
 /* ---------- Botón Ver más (enlazará a PDFs) ---------- */
@@ -225,20 +218,16 @@ ol, ul { list-style: none; }
 .step { justify-content: flex-end; }
 .step[data-side='l'] { justify-content: flex-start; }
 .step .pt-body { width: min(400px, 36%); max-width: none; }
-.slidebox { pointer-events: auto; left: 0; transform: none; width: min(300px, 40%); }
 @media (max-width: 900px) {
   .seq .stage, .seq .steps { grid-column: 1; grid-row: 1; }
   .seq .steps { padding-top: calc(var(--stage-h) + 6px); }
   .seq .stage { pointer-events: auto; }
   .step, .step[data-side='l'] { justify-content: flex-start; }
-  .slidebox { left: 50%; transform: translateX(-50%); width: min(300px, 62%); }
 }
 @media (max-width: 900px) { .step .pt-body { width: 100%; max-width: 520px; } }
 
 /* mientras la escena abarca la pantalla, el texto del paso espera */
 .seq.opening .step { opacity: 0 !important; }
-.slidebox { transition: opacity .5s; }
-.seq.opening .slidebox { opacity: 0; }
 
 /* ---------- Texto del paso: entra por partes (etiqueta, título, párrafo, botón) ---------- */
 .step .pt-body > * { opacity: 0; transform: translateY(18px); transition: opacity .6s var(--ease), transform .8s var(--ease); }
@@ -255,3 +244,54 @@ ol, ul { list-style: none; }
 .more-row { display: flex; flex-wrap: wrap; gap: 10px; }
 .btn-more.ghost { border-color: var(--line-strong); color: var(--muted); }
 .btn-more.ghost:hover { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+/* ---------- Tres animaciones en fila (Bambú Diseño) ---------- */
+.row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(18px, 3vw, 44px); }
+.row3 .viz { aspect-ratio: 4 / 3; }
+.row3 .pt-body { padding-top: 14px; }
+.row3 h4 { margin-top: 10px; font-size: clamp(18px, 1.6vw, 22px); font-weight: 600; line-height: 1.25; color: var(--ink); }
+.row3 p { margin-top: 10px; font-size: 15px; color: var(--muted); }
+@media (max-width: 860px) { .row3 { grid-template-columns: 1fr; } }
+
+/* ---------- Slidebox vertical (a la izquierda, tras la portada): un punto por animación, grandes al inicio de cada sección ---------- */
+.rail { position: fixed; left: 12px; top: 50%; z-index: 45; width: 20px; height: min(60vh, 460px); transform: translateY(-50%); cursor: grab; touch-action: none; opacity: 0; pointer-events: none; transition: opacity .5s var(--ease); --p: 0; user-select: none; }
+.rail.on { opacity: 1; pointer-events: auto; }
+.rail.drag { cursor: grabbing; }
+.rail::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 4px; border-radius: 4px; background: var(--line); }
+.rail-fill { position: absolute; left: 8px; top: 0; width: 4px; border-radius: 4px; height: calc(var(--p) * 100%); background: var(--blue); }
+.rail-dot { position: absolute; left: 10px; width: 6px; height: 6px; transform: translate(-50%, -50%); border-radius: 50%; background: #a4aec5; box-shadow: 0 0 0 2px var(--bg); transition: background .25s, transform .25s; }
+.rail-dot.big { width: 11px; height: 11px; background: var(--faint); }
+.rail-dot.now { background: var(--blue); transform: translate(-50%, -50%) scale(1.35); }
+.rail-handle { position: absolute; left: 2px; top: calc(var(--p) * 100%); width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; border: 3px solid var(--blue); background: var(--bg); box-shadow: 0 2px 8px rgba(15, 42, 94, .3); transition: transform .2s var(--ease); }
+.rail:hover .rail-handle, .rail.drag .rail-handle { transform: scale(1.2); }
+.rail-year { position: absolute; left: 31px; top: calc(var(--p) * 100%); transform: translateY(-50%); font: 500 11px/1 var(--mono); letter-spacing: .04em; color: var(--blue); white-space: nowrap; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.rail-year.show { opacity: 1; }
+.rail:focus-visible { outline: 2px solid var(--blue); outline-offset: 6px; border-radius: 6px; }
+@media (max-width: 900px) { .rail { left: 2px; width: 16px; height: 42vh; } .rail::before, .rail-fill { left: 6px; width: 3px; } .rail-dot { left: 7.5px; } .rail-dot.big { width: 9px; height: 9px; } .rail-handle { left: 1px; width: 13px; height: 13px; margin-top: -6.5px; } .rail-year { position: absolute; left: 31px; top: calc(var(--p) * 100%); transform: translateY(-50%); font: 500 11px/1 var(--mono); letter-spacing: .04em; color: var(--blue); white-space: nowrap; opacity: 0; transition: opacity .3s; pointer-events: none; } }
+
+/* el contenido deja libre el margen del slidebox */
+@media (min-width: 901px) { .section, .contact { padding-left: max(clamp(20px, 5vw, 64px), 88px); } }
+/* texto de los pasos: centrado en vertical y alineado a la izquierda, como las animaciones */
+.step .pt-body { text-align: left; }
+
+/* barra superior siempre visible */
+.nav { transform: none !important; }
+
+
+/* el texto de cada paso queda a la altura exacta del centro del escenario fijo */
+.seq { --stage-h: min(74vh, 640px, calc(100vh - 176px)); }
+@media (min-width: 901px) { .step { min-height: var(--stage-h); } }
+
+/* ---------- Slidebox lateral: gris claro sólido (sin transparencia) y la posición actual en azul ---------- */
+.rail.on, .rail.on:hover, .rail.drag { opacity: 1; }
+.rail::before { background: #d9dde6; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.rail-fill { background: #d9dde6; box-shadow: none; }
+.rail-dot { background: #c3c9d6; box-shadow: 0 0 0 2px var(--bg); }
+.rail-dot.big { background: #b4bccd; box-shadow: 0 0 0 2px var(--bg); }
+.rail-dot.now { background: var(--blue); box-shadow: 0 0 0 2px var(--bg); }
+.rail-handle { background: var(--blue); border: 0; box-shadow: 0 0 0 3px var(--bg), 0 2px 8px rgba(15, 42, 94, .3); }
+.rail-year { color: var(--blue); }
+
+/* slidebox sin ningún contorno: ni sombras, ni halos, ni anillo de enfoque */
+.rail, .rail *, .rail::before { box-shadow: none !important; outline: none !important; border: 0 !important; }
+.rail:focus-visible { outline: none !important; }

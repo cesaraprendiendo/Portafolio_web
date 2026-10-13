@@ -9,7 +9,6 @@
     const nav = $('#nav'); let last = scrollY;
     addEventListener('scroll', () => {
       const y = scrollY;
-      nav.classList.toggle('hide', y > last && y > 240);
       nav.classList.toggle('line', y > 20);
       last = y;
     }, { passive: true });
@@ -52,10 +51,6 @@
   $$('.seq').forEach((seq) => {
     const viz = $('.seq-viz', seq), steps = $$('.step', seq), stage = $('.stage', seq);
     viz.dataset.sides = steps.map((st) => st.dataset.side || 'r').join(',');
-    const box = document.createElement('div'), thumb = document.createElement('i');
-    box.className = 'slidebox'; box.setAttribute('role', 'slider'); box.setAttribute('aria-label', 'Avance de la sección');
-    box.setAttribute('aria-valuemin', '0'); box.setAttribute('aria-valuemax', '100'); box.style.setProperty('--n', steps.length);
-    box.appendChild(thumb); stage.appendChild(box);
     const mid = () => innerHeight * (innerWidth <= 900 ? .66 : .5);
     const centers = () => steps.map((st) => { const r = st.getBoundingClientRect(); return r.top + r.height / 2; });
     let cur = -1;
@@ -63,25 +58,100 @@
       const c = centers(), m = mid();
       let best = 0, bd = 1e9;
       c.forEach((y, k) => { const d = Math.abs(y - m); if (d < bd) { bd = d; best = k; } });
-      // progreso continuo entre el primer y el último paso
-      let p = 0;
-      if (c.length > 1) {
-        const f = (c[0] - m) / (c[0] - c[c.length - 1] || 1);
-        p = Math.min(1, Math.max(0, f));
-      }
-      box.style.setProperty('--p', p.toFixed(4)); box.setAttribute('aria-valuenow', Math.round(p * 100));
       if (best === cur) return;
       cur = best;
       steps.forEach((st, k) => st.classList.toggle('on', k === best));
       if (window.Viz && Viz.setSeq) Viz.setSeq(viz, best);
     };
-    box.addEventListener('click', (e) => {
-      const r = box.getBoundingClientRect(), k = Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * (steps.length - 1));
-      const y = centers()[k];
-      scrollTo({ top: scrollY + y - mid(), behavior: reduce ? 'auto' : 'smooth' });
-    });
     addEventListener('scroll', pick, { passive: true }); addEventListener('resize', pick); pick();
   });
+
+  // ---------- Slidebox vertical a la izquierda: aparece tras la portada, un punto por animación (grandes al inicio de cada sección), año de la sección y arrastre que salta de animación en animación ----------
+  (() => {
+    const first = $('#perfil'); if (!first) return;
+    const rail = document.createElement('div'), fill = document.createElement('i'), handle = document.createElement('b'), year = document.createElement('span');
+    rail.className = 'rail'; rail.setAttribute('role', 'slider'); rail.setAttribute('aria-label', 'Avance de la página: salta entre animaciones'); rail.setAttribute('aria-orientation', 'vertical');
+    rail.setAttribute('aria-valuemin', '0'); rail.setAttribute('aria-valuemax', '100'); rail.tabIndex = 0;
+    fill.className = 'rail-fill'; handle.className = 'rail-handle'; year.className = 'rail-year';
+    const mid = () => innerHeight * (innerWidth <= 900 ? .66 : .5);
+    // destinos: inicio de cada sección (punto grande) y cada animación (punto pequeño)
+    const targets = [];
+    ['#perfil', '#educacion', '#experiencia', '#logros', '#habilidades', '#contacto'].forEach((id) => { const el = $(id); if (el) targets.push({ el, big: true, kind: 'sec' }); });
+    $$('.step').forEach((el) => targets.push({ el, big: false, kind: 'step' }));
+    // contenido que queda entre posiciones: el bloque de Bambú y el final de las secciones más altas que la ventana
+    { const r3 = $('.row3'); if (r3) targets.push({ el: r3.closest('.org') || r3, big: false, kind: 'block' }); }
+    ['#logros', '#habilidades'].forEach((id) => { const el = $(id); if (el) targets.push({ el, big: false, kind: 'secEnd' }); });
+    targets.forEach((tg) => { tg.dot = document.createElement('span'); tg.dot.className = 'rail-dot' + (tg.big ? ' big' : ''); rail.appendChild(tg.dot); });
+    rail.append(fill, handle, year); document.body.appendChild(rail);
+    // años: cada institución o empresa trae el suyo en su encabezado
+    const spans = [...$$('.org'), ...$$('[data-year]')].map((el) => ({ el, txt: el.dataset.year || ((($('.org-meta b', el) || {}).textContent || '').match(/\d{4}/) || [''])[0] })).filter((s) => s.txt);
+    let start = 0, span = 1, pos = [], bounds = [];
+    const measure = () => {
+      start = first.getBoundingClientRect().top + scrollY - 40;
+      span = Math.max(1, document.documentElement.scrollHeight - innerHeight - start);
+      targets.forEach((tg) => {
+        const r = tg.el.getBoundingClientRect();
+        const top = r.top + scrollY;
+        tg.y = tg.kind === 'sec' ? top - 40 : tg.kind === 'block' ? (r.height < innerHeight - 90 ? top + r.height / 2 - innerHeight / 2 : top - 100) : tg.kind === 'secEnd' ? top + r.height - innerHeight + 24 : top + r.height / 2 - mid();
+        tg.on = tg.kind !== 'secEnd' || tg.y - (top - 40) > 60;     // el final de una sección solo cuenta si no cabe en la ventana
+        tg.dot.style.display = tg.on ? '' : 'none';
+        tg.f = Math.min(1, Math.max(0, (tg.y - start) / span));
+        tg.dot.style.top = (tg.f * 100).toFixed(2) + '%';
+      });
+      calcAllowed();
+      bounds = spans.map((s) => { const r = s.el.getBoundingClientRect(); return { top: r.top + scrollY, bottom: r.bottom + scrollY, txt: s.txt }; });
+    };
+    let drag = false, dragF = null, lastYear = null, lastNear = -1;
+    // ---------- la página solo puede quedarse en las posiciones del slidebox ----------
+    // al dejar de desplazarte se ajusta a la más cercana; si te moviste un poco hacia un lado, avanza a la siguiente en esa dirección (si no, cada rueda del ratón regresaría al mismo punto)
+    let allowed = [0];
+    const maxScroll = () => Math.max(0, document.documentElement.scrollHeight - innerHeight);
+    const calcAllowed = () => { const mx = maxScroll(); allowed = [...new Set([0, mx, ...targets.filter((tg) => tg.on).map((tg) => Math.round(tg.y))].map((v) => Math.round(Math.max(0, Math.min(mx, v)))))].sort((p, q) => p - q); };
+    const nearestIdx = (y) => { let bi = 0, bd = 1e9; allowed.forEach((v, i) => { const d = Math.abs(v - y); if (d < bd) { bd = d; bi = i; } }); return bi; };
+    let snapping = false, startY = null, lastY = scrollY, idleT = 0, relT = 0;
+    const THR = 30;
+    const settle = () => {
+      if (drag || snapping) return;
+      const y = scrollY, i0 = nearestIdx(startY === null ? y : startY), ny = nearestIdx(y), d = y - (startY === null ? y : startY);
+      let i = ny;
+      if (d > THR && ny <= i0) i = Math.min(allowed.length - 1, i0 + 1); else if (d < -THR && ny >= i0) i = Math.max(0, i0 - 1);
+      startY = null; const target = allowed[i];
+      if (Math.abs(y - target) > 2) {
+        snapping = true; scrollTo({ top: target, behavior: reduce ? 'auto' : 'smooth' });
+        clearTimeout(relT); relT = setTimeout(() => { snapping = false; lastY = scrollY; idleT = setTimeout(settle, 60); }, reduce ? 60 : 900);
+      } else lastY = y;
+    };
+    addEventListener('scroll', () => {
+      if (snapping) return;
+      if (startY === null) startY = lastY;
+      lastY = scrollY; clearTimeout(idleT); idleT = setTimeout(settle, 140);
+    }, { passive: true });
+
+    const near = (f) => { let bi = 0, bd = 1e9; targets.forEach((tg, i) => { if (!tg.on) return; const d = Math.abs(tg.f - f); if (d < bd) { bd = d; bi = i; } }); return bi; };
+    const update = () => {
+      const p = Math.min(1, Math.max(0, (scrollY - start) / span)), f = dragF === null ? p : dragF;
+      rail.style.setProperty('--p', f.toFixed(4)); rail.setAttribute('aria-valuenow', Math.round(f * 100));
+      rail.classList.toggle('on', scrollY > start - innerHeight * .55);
+      const n = near(p); if (n !== lastNear) { lastNear = n; targets.forEach((tg, i) => tg.dot.classList.toggle('now', i === n)); }
+      const c = scrollY + innerHeight / 2, b = bounds.find((x) => c >= x.top && c <= x.bottom), txt = b ? b.txt : '';
+      if (txt !== lastYear) { lastYear = txt; year.textContent = txt; year.classList.toggle('show', !!txt); }
+    };
+    const jump = (tg) => { scrollTo({ top: tg.y, behavior: 'instant' }); };
+    const pick = (clientY) => { const r = rail.getBoundingClientRect(), f = Math.min(1, Math.max(0, (clientY - r.top) / r.height)), tg = targets[near(f)]; dragF = tg.f; jump(tg); update(); };
+    rail.addEventListener('pointerdown', (e) => { drag = true; rail.setPointerCapture(e.pointerId); rail.classList.add('drag'); pick(e.clientY); });
+    rail.addEventListener('pointermove', (e) => { if (drag) pick(e.clientY); });
+    const end = () => { drag = false; dragF = null; rail.classList.remove('drag'); update(); };
+    rail.addEventListener('pointerup', end); rail.addEventListener('pointercancel', end);
+    rail.addEventListener('keydown', (e) => {
+      const d = { ArrowDown: 1, ArrowRight: 1, PageDown: 1, ArrowUp: -1, ArrowLeft: -1, PageUp: -1 }[e.key]; if (!d) return;
+      e.preventDefault(); const p = Math.min(1, Math.max(0, (scrollY - start) / span)), sorted = targets.filter((x) => x.on).slice().sort((x, y) => x.f - y.f);
+      const t = d > 0 ? sorted.find((x) => x.f > p + .002) : sorted.slice().reverse().find((x) => x.f < p - .002); if (t) jump(t);
+    });
+    addEventListener('scroll', update, { passive: true }); const re = () => { measure(); update(); };
+    addEventListener('resize', re); addEventListener('load', re);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(re);
+    measure(); update(); setInterval(re, 1500);
+  })();
 
   // ---------- Ver más: los enlaces a PDF se activan al poner la ruta real en el href ----------
   $$('.btn-more').forEach((a) => a.addEventListener('click', (e) => { if (a.getAttribute('href') === '#') e.preventDefault(); }));

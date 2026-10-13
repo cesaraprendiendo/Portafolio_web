@@ -106,70 +106,56 @@
     };
   });
 
-  // ===== GOBIERNO · chatbot de WhatsApp con n8n =====
+  // ===== GOBIERNO · chatbot de WhatsApp con n8n (minimalista): un mensaje entra, se procesa y se guarda; la respuesta regresa =====
   add('chatbot', () => {
-    const { scene } = base({ cam: [0, 0, 9.4], aspect: 1.6 });
-    const g = new T.Group(); g.rotation.y = -.18; scene.add(g);
-    const phone = new T.Mesh(rrect(.95, 1.9, .2, .2), solid(P.white)); phone.position.set(-3.5, -.2, 0);
-    g.add(phone, new T.LineSegments(new T.EdgesGeometry(phone.geometry), lineM(P.g5, .8)).translateX(-3.5).translateY(-.2));
-    const nodes = [[-1.3, .8, P.white], [1.0, 1.1, P.g6], [3.3, 0, P.white]].map(([x, s, c], i) => {
-      const b = i === 2 ? block(1.2, .9, .3, c, P.g5, .8) : block(s, s, s, c, i === 1 ? P.ink : P.g5, .8);
-      b.position.set(x, .5, 0); g.add(b);
-      return b;
-    });
-    [['WhatsApp', -3.5], ['Webhook', -1.3], ['n8n', 1.0], ['Sheets', 3.3]].forEach(([s, x]) => { const l = label(s, { px: 24 }); l.position.set(x, -1.95, 0); g.add(l); });
-    g.add(poly([V3(-3.0, .5, 0), V3(3.3, .5, 0)], P.g4, .8));
-    g.add(poly([V3(1.0, -.9, 0), V3(-3.0, -.9, 0)], P.g3, .9));
-    const bub = (c, ec) => { const m = new T.Mesh(rrect(.78, .38, .12, .1), solid(c)); const e = new T.LineSegments(new T.EdgesGeometry(m.geometry), lineM(ec, .9)); m.add(e); g.add(m); return m; };
-    const fw = bub(P.white, P.g6), rp = bub(P.ink, P.ink);
-    const chip = block(.3, .2, .12, P.g4, P.g6, .8); g.add(chip);
-    const PER = 4.2;
+    const { scene } = base({ cam: [0, 0, 9], aspect: 1.9 });
+    const g = new T.Group(); scene.add(g);
+    const NAVY = new T.Color(P.ink), GREY = new T.Color(P.g4), tmp = new T.Color();
+    const slab = (parent, w, h, r, d, x, y, z = 0, fill = P.white, ec = P.g5) => { const geo = rrect(w, h, r, d), m = new T.Mesh(geo, solid(fill)); m.add(new T.LineSegments(new T.EdgesGeometry(geo, 25), lineM(ec, .9))); m.position.set(x, y, z); parent.add(m); return m; };
+    const disc = (r, x, y, z, color, parent) => { const m = new T.Mesh(new T.CircleGeometry(r, 28), new T.MeshBasicMaterial({ color, transparent: true })); m.position.set(x, y, z); parent.add(m); return m; };
+    const XB = -3.1, XN = 0, XS = 3.1;
+    // burbuja de chat (con tres puntos que parpadean al escribir)
+    const B = new T.Group(); B.position.set(XB, 0, 0); g.add(B);
+    slab(B, 1.5, 1.0, .34, .14, 0, 0);
+    { const tail = new T.Mesh(new T.CircleGeometry(.17, 3), new T.MeshBasicMaterial({ color: P.white })); tail.rotation.z = Math.PI * 1.05; tail.position.set(-.45, -.55, .02); B.add(tail);
+      const tl = poly([V3(-.62, -.49, .1), V3(-.35, -.49, .1)], P.g5, 0); }
+    const dots = [-.3, 0, .3].map((x) => disc(.075, x, 0, .12, P.g5, B));
+    // nodo de n8n: cuadrado redondeado con un anillo
+    const N = new T.Group(); N.position.set(XN, 0, 0); g.add(N);
+    const nBody = slab(N, 1.1, 1.1, .26, .16, 0, 0);
+    { const ring = new T.Mesh(new T.RingGeometry(.2, .26, 40), new T.MeshBasicMaterial({ color: P.g5 })); ring.position.z = .12; N.add(ring); }
+    const nCore = disc(.1, 0, 0, .13, P.g5, N);
+    // almacenamiento: cuadrado redondeado con cuadrícula 2×2 que se va llenando
+    const S = new T.Group(); S.position.set(XS, 0, 0); g.add(S);
+    slab(S, 1.2, 1.2, .16, .14, 0, 0);
+    const cells = [[-.27, .27], [.27, .27], [-.27, -.27], [.27, -.27]].map(([x, y]) => { const m = new T.Mesh(new T.PlaneGeometry(.42, .42), new T.MeshBasicMaterial({ color: P.g6, transparent: true, opacity: 0 })); m.position.set(x, y, .1); S.add(m); return m; });
+    // hilos
+    const L1 = poly([V3(XB + .85, 0, -.02), V3(XN - .65, 0, -.02)], P.g4, .95), L2 = poly([V3(XN + .65, 0, -.02), V3(XS - .72, 0, -.02)], P.g4, .95); g.add(L1, L2);
+    // paquetes
+    const mkPkt = (r, c, ec) => { const m = new T.Mesh(new T.CircleGeometry(r, 24), new T.MeshBasicMaterial({ color: c, transparent: true })); const ring = new T.Mesh(new T.RingGeometry(r, r + .03, 24), new T.MeshBasicMaterial({ color: ec })); m.add(ring); m.visible = false; g.add(m); return m; };
+    const p1 = mkPkt(.12, P.ink, P.ink), p2 = mkPkt(.12, P.ink, P.ink), p3 = mkPkt(.15, P.white, P.ink);
+    const PER = 6.4, pulse = (tc, a, b) => Math.max(0, Math.sin(clamp((tc - a) / (b - a)) * Math.PI));
+    const lerp3 = (a, b, u) => a + (b - a) * u;
     return (t, dt, m) => {
-      const tc = t % PER;
-      const u = clamp(tc / 1.7);
-      fw.visible = tc < 1.75; fw.position.set(lerp(-3.0, 1.0, easeOut(u) * .6 + u * .4), .5, .2);
-      const pulse = (c, a, b) => Math.max(0, Math.sin(clamp((tc - a) / (b - a)) * Math.PI));
-      nodes[0].scale.setScalar(1 + .18 * pulse(0, .55, 1.05));
-      nodes[1].scale.setScalar(1 + .2 * pulse(1, 1.7, 2.3));
-      nodes[2].scale.setScalar(1 + .2 * pulse(2, 2.9, 3.4));
-      chip.visible = tc > 2.2 && tc < 3.0; chip.position.set(lerp(1.5, 3.0, clamp((tc - 2.2) / .8)), .5, .2);
-      const r = clamp((tc - 2.2) / 1.7); rp.visible = tc > 2.2 && tc < 3.95;
-      if (r < .2) rp.position.set(1.0, lerp(.5, -.9, r / .2), .2); else rp.position.set(lerp(1.0, -3.0, (r - .2) / .8), -.9, .2);
-      g.rotation.y = -.18 + m.x * .25; g.rotation.x = m.y * .1;
-    };
-  });
-
-  // ===== GOBIERNO · base de datos ligera en Google Sheets y Drive =====
-  add('sheets', () => {
-    const { scene } = base({ cam: [0, 6, 8.6], look: [0, 0, 0], aspect: 1.6 });
-    const COLS = 6, ROWS = 6, cw = .78, PERIOD = 9, RT = .75;
-    const g = new T.Group(); g.position.x = -1; scene.add(g);
-    const cells = [];
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      const b = block(cw * .92, .1, .6, r === 0 ? P.g3 : P.white, P.g5, .7);
-      b.position.set((c - 2.5) * cw, 0, (r - 2.5) * .66); g.add(b); cells.push({ b, r, c });
-    }
-    const folder = block(1.3, .9, 1.2, P.g1, P.g6, .9); folder.position.set(4.1, .45, 0); g.add(folder);
-    const tab = block(.6, .16, .35, P.g2, P.g6, .9); tab.position.set(3.8, .98, -.45); g.add(tab);
-    const chips = Array.from({ length: ROWS - 1 }, () => { const b = block(.34, .06, .22, P.ink, P.ink, .6); g.add(b); return b; });
-    let fill = 0;
-    return (t, dt, m) => {
-      const tc = t % PERIOD, clear = clamp((tc - 7.4) / .8);
-      cells.forEach(({ b, r, c }) => {
-        if (r === 0) { b.position.y = 0; return; }
-        const a = clamp((tc - (r - 1) * RT - c * .06) / .5);
-        b.position.y = Math.sin(a * Math.PI) * .3;
-        tint(b.body.material, P.white, P.g5, a >= 1 ? 1 - clear : a);
-      });
-      let landed = 0;
-      chips.forEach((ch, i) => {
-        const u = (tc - (i * RT + .35)) / .7;
-        ch.visible = u > 0 && u < 1;
-        if (u >= 1 && tc < 7.4) landed++;
-        if (ch.visible) ch.position.set(lerp(2.3, 3.8, u), .15 + Math.sin(u * Math.PI) * 1.1, (i - 2) * .25 * (1 - u));
-      });
-      folder.scale.y = 1 + .06 * landed * (tc < 7.4 ? 1 : 0);
-      g.rotation.y = m.x * .25; g.rotation.x = m.y * .06;
+      const tc = t % PER, gs = smooth(tc / .8) * (1 - smooth((tc - PER + 1) / .9));
+      g.scale.setScalar(Math.max(.001, gs));
+      // los tres puntos de la burbuja parpadean mientras se escribe el mensaje
+      dots.forEach((d, i) => { const on = tc < 1.1 ? .35 + .65 * Math.max(0, Math.sin(tc * 9 - i * 1.1)) : .35; d.material.opacity = on; });
+      B.scale.setScalar(1 + .08 * pulse(tc, .9, 1.3) + .1 * pulse(tc, 4.7, 5.2));
+      // 1) la burbuja envía el mensaje al nodo
+      const u1 = clamp((tc - 1.1) / 1.0); p1.visible = u1 > 0 && u1 < 1; p1.position.set(lerp3(XB + .85, XN - .65, easeOut(u1)), 0, .2);
+      L1.material.color.copy(GREY).lerp(NAVY, smooth((tc - 1.1) / .8) * (tc < PER - 1 ? 1 : 0));
+      // 2) el nodo procesa y envía el dato al almacenamiento
+      N.scale.setScalar(1 + .1 * pulse(tc, 2.0, 2.7));
+      nCore.material.color.copy(tmp.setHex(P.g5)).lerp(NAVY, pulse(tc, 2.0, 2.7));
+      const u2 = clamp((tc - 2.7) / 1.0); p2.visible = u2 > 0 && u2 < 1; p2.position.set(lerp3(XN + .65, XS - .72, easeOut(u2)), 0, .2);
+      L2.material.color.copy(GREY).lerp(NAVY, smooth((tc - 2.7) / .8) * (tc < PER - 1 ? 1 : 0));
+      // 3) el almacenamiento se llena celda por celda
+      S.scale.setScalar(1 + .1 * pulse(tc, 3.7, 4.4));
+      cells.forEach((c, i) => { c.material.opacity = .9 * smooth((tc - 3.8 - i * .18) / .35) * (tc < PER - 1 ? 1 : 0); });
+      // 4) la respuesta regresa al chat
+      const u3 = clamp((tc - 4.3) / 1.4); p3.visible = u3 > 0 && u3 < 1; p3.position.set(lerp3(XN - .65, XB + .85, easeOut(u3)), 0, .2);
+      g.rotation.y = m.x * .2; g.rotation.x = m.y * .08;
     };
   });
 
@@ -296,39 +282,6 @@
         b.scale.setScalar(Math.max(.001, 1 - out));
       });
       g.rotation.y = .5 + Math.sin(t * .25) * .35 + m.x * .3; g.rotation.x = m.y * .08;
-    };
-  });
-
-  // ===== SENTRIA · interfaz en Streamlit + control de versiones en GitHub =====
-  add('gitui', () => {
-    const { scene } = base({ cam: [0, 0, 10.4], aspect: 1.5 });
-    const g = new T.Group(); g.rotation.y = -.15; scene.add(g);
-    const win = block(3.6, 4.2, .12, P.white, P.g5, .9); win.position.set(-2.5, 0, 0); g.add(win);
-    const bar = block(3.6, .4, .14, P.g2, P.g5, .9); bar.position.set(-2.5, 1.9, .01); g.add(bar);
-    [0, 1, 2].forEach((i) => { const d = new T.Mesh(new T.SphereGeometry(.07, 10, 8), solid(P.g5)); d.position.set(-4.1 + i * .22, 1.9, .1); g.add(d); });
-    const knobs = [0, 1, 2].map((i) => {
-      const y = .85 - i * .85;
-      g.add(poly([V3(-4.0, y, .1), V3(-1.0, y, .1)], P.g4, 1));
-      const k = new T.Mesh(new T.SphereGeometry(.14, 14, 10), solid(P.ink)); k.position.set(-3, y, .15); g.add(k);
-      return { k, y, ph: i * 1.7 };
-    });
-    const btn = block(1.2, .4, .2, P.ink, P.ink, .6); btn.position.set(-2.5, -1.55, .15); g.add(btn);
-    // gráfico de commits
-    const nodes = [[0.7, 1.0], [1.7, 1.0], [2.7, 1.0], [3.7, 1.0], [2.2, -.6], [3.1, -.6]];
-    const segs = [[0, 1], [1, 2], [2, 3], [1, 4], [4, 5], [5, 3]];
-    const cm = nodes.map(([x, y], i) => { const s = new T.Mesh(new T.SphereGeometry(.15, 14, 10), solid(i === 3 ? P.ink : P.g4)); s.position.set(x, y, 0); g.add(s); return s; });
-    const sl = segs.map(([a, b]) => { const l = poly([V3(...nodes[a], 0), V3(...nodes[b], 0)], P.g5, 1); g.add(l); return l; });
-    const mainL = label('main', { px: 24 }); mainL.position.set(.7, 1.55, 0); g.add(mainL);
-    const brL = label('rama', { px: 24 }); brL.position.set(2.2, -1.15, 0); g.add(brL);
-    const gl = label('GitHub', { px: 26 }); gl.position.set(2.3, -2.4, 0); g.add(gl);
-    const times = [.3, 1.0, 3.9, 4.6, 1.8, 2.7];
-    return (t, dt, m) => {
-      const tc = t % 7;
-      knobs.forEach((o) => { o.k.position.x = -2.5 + Math.sin(t * .9 + o.ph) * 1.2; });
-      btn.position.z = .15 - .08 * Math.max(0, Math.sin(tc * 2.2 * Math.PI / 3.5) > .9 ? 1 : 0);
-      cm.forEach((s, i) => { const on = tc > times[i]; s.visible = on; s.scale.setScalar(on ? 1 + .4 * Math.max(0, 1 - (tc - times[i]) * 3) : 1); });
-      sl.forEach((l, i) => { const [a, b] = segs[i]; l.visible = tc > Math.max(times[a], times[b]) - .05; });
-      g.rotation.y = -.15 + m.x * .25; g.rotation.x = m.y * .1;
     };
   });
 

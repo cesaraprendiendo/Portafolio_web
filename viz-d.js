@@ -294,7 +294,7 @@
       const stg = SETS.map((_, k) => { const a = 3 + 1.05 * k; return [a, a + .9, a + 1.4, a + 2.1]; });
       pSets.forEach((s, k) => {
         const [a, b, c, d] = stg[k], vis = smooth((tc - a) / .5) * (1 - smooth((tc - c) / (d - c))) * g;
-        s.mat.opacity = .55 * vis; s.el.material.opacity = .8 * vis;
+        s.mat.opacity = .55 * vis; s.el.material.opacity = .5 * vis;   // relleno como antes; líneas azules algo más transparentes
         s.list.forEach((p, i) => {
           const rv = easeOut((tc - a - (i / s.list.length) * (b - a)) / .35) * .94;
           dm.position.set((p.xa + p.xb) / 2, (p.ya + p.yb) / 2, 0); dm.scale.set((p.xb - p.xa) * Math.max(rv, .0001), (p.yb - p.ya) * Math.max(rv, .0001), 1); dm.updateMatrix(); s.m.setMatrixAt(i, dm.matrix);
@@ -373,139 +373,69 @@
     };
   });
 
-  // ===== LOGRO · árbol de decisión (decisiones financieras bajo incertidumbre) =====
+  // ===== LOGRO · árbol de decisión de 5 capas de bolitas (desde la raíz hasta la última capa): se despliega, se calcula el valor esperado hacia atrás y se recorre el mejor camino =====
   add('dtree', () => {
-    const { scene } = base({ cam: [0, 0, 11.5], aspect: 1.2 });
-    const PER = 16;
-    const root = V3(-4.0, 0, 0);
-    const opts = [
-      { name: 'Expandir', c: V3(-1.1, 2.2, 0), leaves: [[.5, 140, 3.0], [.3, 20, 2.1], [.2, -90, 1.2]] },
-      { name: 'Mantener', c: V3(-1.1, .1, 0), leaves: [[.6, 60, .5], [.4, 10, -.3]] },
-      { name: 'Reducir', c: V3(-1.1, -2.0, 0), leaves: [[.7, 30, -1.6], [.3, 20, -2.4]] },
-    ];
-    opts.forEach((o) => { o.ev = Math.round(o.leaves.reduce((s, l) => s + l[0] * l[1], 0)); });
-    const best = opts.reduce((b, o, i) => (o.ev > opts[b].ev ? i : b), 0);
-    const edges = [], texts = [];
-    const edge = (a, b, t0, t1, o) => { const d = dyn(2, P.g4, 1); scene.add(d.line); const e = { d, a, b, t0, t1, o, bestPath: o.best }; edges.push(e); return e; };
-    const txt = (s, p, t0, px = 22, color) => { const l = label(s, { px, color }); l.position.copy(p); scene.add(l); const x = { l, t0 }; texts.push(x); return x; };
-    const rootN = block(.55, .55, .55, P.white, P.ink, 1); rootN.position.copy(root); scene.add(rootN);
-    const nodes = [], leafM = [];
-    opts.forEach((o, i) => {
-      o.best = i === best;
-      o.e = edge(root, o.c, i * .35, i * .35 + 1.2, o);
-      const n = new T.Mesh(new T.SphereGeometry(.3, 20, 14), solid(P.white)); n.position.copy(o.c); n.scale.setScalar(.001); scene.add(n); nodes.push(n);
-      txt(o.name, V3((root.x + o.c.x) / 2 - .1, (root.y + o.c.y) / 2 + (i === 1 ? .3 : i === 0 ? .35 : -.35), 0), i * .35 + .9, 24, '#061331');
-      o.le = o.leaves.map(([p, v, y], k) => {
-        const lp = V3(2.5, y, 0), t0 = 2.6 + i * .5 + k * .2;
-        const e = edge(o.c, lp, t0, t0 + .9, o);
-        const cone = new T.Mesh(new T.ConeGeometry(.2, .42, 3), solid(v >= 100 ? P.g6 : P.g3)); cone.rotation.z = -Math.PI / 2; cone.position.copy(lp); cone.scale.setScalar(.001); scene.add(cone); leafM.push({ cone, t0: t0 + .7, o, v });
-        txt('p = ' + p, V3(.7, (o.c.y + y) / 2 + .25, 0), t0 + .6, 18, '#3a5088');
-        txt((v > 0 ? '+' : '−') + Math.abs(v), V3(3.3, y, 0), t0 + .8, 24, v < 0 ? '#0f2a5e' : '#061331');
-        return e;
-      });
-      o.evT = txt('VE = ' + o.ev, V3(o.c.x, o.c.y + .62, 0), 6 + i * .5, 24, '#0f2a5e');
+    const { scene } = base({ cam: [0, 0, 11.2], aspect: 1.75 });
+    const SIZES = [1, 3, 6, 12, 22], NL = SIZES.length, XL = (k) => -4.5 + 9 * k / (NL - 1), PER = 24;
+    const R = rng(52);
+    // ----- estructura: cada nodo de una capa tiene al menos un hijo en la siguiente -----
+    const layers = SIZES.map((n, k) => Array.from({ length: n }, (_, j) => ({ k, j, kids: [], par: null, y: 0, v: 0, p: 0 })));
+    for (let k = 1; k < NL; k++) layers[k].forEach((nd, j) => { const p = layers[k - 1][Math.floor(j * SIZES[k - 1] / SIZES[k])]; nd.par = p; p.kids.push(nd); });
+    // posiciones: la última capa va repartida de forma pareja y cada padre queda en el promedio de sus hijos
+    layers[NL - 1].forEach((nd, j) => { nd.y = (j - (SIZES[NL - 1] - 1) / 2) * (5.3 / (SIZES[NL - 1] - 1)); });
+    for (let k = NL - 2; k >= 0; k--) layers[k].forEach((nd) => { nd.y = nd.kids.reduce((s, c) => s + c.y, 0) / nd.kids.length; });
+    // ----- valores: pagos aleatorios en las hojas; capas impares = azar (promedio), capas pares = decisión (máximo) -----
+    layers[NL - 1].forEach((nd) => { nd.v = -1 + 4 * R(); });
+    for (let k = NL - 2; k >= 0; k--) layers[k].forEach((nd) => { nd.v = nd.kids.length ? (k % 2 ? nd.kids.reduce((s, c) => s + c.v, 0) / nd.kids.length : Math.max(...nd.kids.map((c) => c.v))) : 0; });
+    const all = layers.flat(), vmin = Math.min(...all.map((n) => n.v)), vmax = Math.max(...all.map((n) => n.v));
+    const norm = (v) => (v - vmin) / (vmax - vmin || 1);
+    // mejor camino: desde la raíz, siempre al hijo de mayor valor
+    const best = [layers[0][0]]; while (best[best.length - 1].kids.length) { const c = best[best.length - 1].kids; best.push(c.reduce((a, b) => (b.v > a.v ? b : a))); }
+    const onBest = new Set(best);
+    // ----- bolitas y aristas -----
+    const g = new T.Group(); scene.add(g);
+    const RAD = [.21, .18, .155, .13, .11];
+    const tmp = new T.Color(), tmp2 = new T.Color(), cLow = new T.Color(P.g3), cSky = new T.Color(P.sky), cInk = new T.Color(P.ink);
+    all.forEach((nd) => {
+      nd.pos = V3(XL(nd.k), nd.y, 0);
+      nd.m = new T.Mesh(new T.SphereGeometry(RAD[nd.k], 22, 16), new T.MeshLambertMaterial({ color: P.g3 })); nd.m.position.copy(nd.pos); nd.m.scale.setScalar(.0001); g.add(nd.m);
+      if (nd.par) {
+        nd.line = new T.Line(new T.BufferGeometry().setFromPoints([nd.par.pos, nd.pos]), new T.LineBasicMaterial({ color: P.g4, transparent: true, opacity: 0 })); g.add(nd.line);
+      }
     });
-    const marker = new T.Mesh(new T.SphereGeometry(.14, 14, 10), solid(P.ink)); scene.add(marker);
-    const path = [root, opts[best].c, V3(2.5, opts[best].leaves[0][2], 0)];
-    const tmp = new T.Color(), cTan = new T.Color(P.g3), cBlue = new T.Color(P.g6);
-    return (t) => {
-      const tc = t % PER, g = 1 - smooth((tc - PER + 1) / 1), pick = smooth((tc - 8.6) / 1);
-      rootN.scale.setScalar(Math.max(.001, g));
-      edges.forEach((e) => {
-        const u = easeOut((tc - e.t0) / (e.t1 - e.t0));
-        const p = e.a.clone().lerp(e.b, u);
-        e.d.arr.set([e.a.x, e.a.y, e.a.z, p.x, p.y, p.z]); e.d.attr.needsUpdate = true;
-        e.d.line.visible = u > .001;
-        tmp.copy(cTan).lerp(cBlue, e.o.best ? pick : 0); e.d.line.material.color.copy(tmp);
-        e.d.line.material.opacity = g * (e.o.best ? 1 : 1 - .55 * pick);
+    // tubos del mejor camino
+    const Y = V3(0, 1, 0), tubeM = new T.MeshLambertMaterial({ color: P.ink });
+    const tubes = best.slice(1).map((nd, i) => {
+      const a = best[i].pos, b = nd.pos, d = b.clone().sub(a), len = d.length(); d.normalize();
+      const m = new T.Mesh(new T.CylinderGeometry(.045, .045, 1, 12), tubeM); m.quaternion.setFromUnitVectors(Y, d); m.visible = false; g.add(m); return { m, a, d, len };
+    });
+    const marker = new T.Mesh(new T.SphereGeometry(.17, 20, 14), new T.MeshBasicMaterial({ color: P.white })); marker.visible = false; g.add(marker);
+    const ring = new T.Mesh(new T.RingGeometry(.2, .24, 32), new T.MeshBasicMaterial({ color: P.ink, side: T.DoubleSide, transparent: true })); marker.add(ring);
+    const TG = .8, T1 = NL * TG + .6, TV = T1 + .8, TB = TV + NL * .75 + .5, TP = TB + .6;
+    return (t, dt, m) => {
+      const tc = t % PER, fade = smooth(tc / .6) * (1 - smooth((tc - PER + 1.4) / 1.2));
+      g.scale.setScalar(Math.max(.001, fade));
+      all.forEach((nd) => {
+        // 1) se despliega capa por capa (primero la arista y luego la bolita)
+        const born = easeOut((tc - nd.k * TG - .3 - nd.j * .02) / .45);
+        // 2) valores esperados hacia atrás: de la última capa a la raíz
+        const vv = smooth((tc - TV - (NL - 1 - nd.k) * .75) / .6), pulse = Math.max(0, 1 - Math.abs(tc - (TV + (NL - 1 - nd.k) * .75 + .3)) * 1.6);
+        nd.m.scale.setScalar(Math.max(.0001, born * (1 + .35 * pulse * (tc > TV ? 1 : 0))));
+        tmp2.copy(cSky).lerp(cInk, norm(nd.v)); tmp.copy(cLow).lerp(tmp2, vv);   // gris claro al inicio y azul según su valor esperado
+        nd.m.material.color.copy(tmp);
+        if (nd.line) nd.line.material.opacity = (onBest.has(nd) && tc > TB ? .15 : .6) * smooth((tc - nd.k * TG + .1) / .5) * fade;
       });
-      nodes.forEach((n, i) => { const s = easeOut((tc - i * .35 - 1) / .5) * g * (i === best ? 1 + .15 * pick : 1); n.scale.setScalar(Math.max(.001, s)); tint(n.material, P.white, i === best ? P.g6 : P.g3, pick); });
-      leafM.forEach((l) => { const s = easeOut((tc - l.t0) / .4) * g; l.cone.scale.setScalar(Math.max(.001, s * (l.o.best && l.v > 100 ? 1 + .35 * pick : 1))); });
-      texts.forEach((x) => { x.l.material.opacity = smooth((tc - x.t0) / .5) * g; });
-      const mt = clamp((tc - 9.6) / 3);
-      marker.visible = tc > 9.6 && tc < PER - 1;
-      const seg = mt < .45 ? [path[0], path[1], mt / .45] : [path[1], path[2], (mt - .45) / .55];
-      marker.position.lerpVectors(seg[0], seg[1], smooth(seg[2]));
-    };
-    function tint(m, a, b, k) { m.color.setHex(a).lerp(tmp.setHex(b), k); }
-  });
-
-  // ===== CONTACTO · autómata celular cuya entrada es un retrato en un solo canal azul, pixelado muy ligeramente.
-  // Ciclo: imagen azul → pixelado → el autómata evoluciona sobre los píxeles → se desarma hasta el color de la hoja (su estado atractor) → se arma de nuevo =====
-  add('automata', () => {
-    const { scene } = base({ cam: [0, 0, 12], fov: 30, aspect: .8 });
-    const PT = window.PORTRAIT; if (!PT) return () => {};
-    const GW = PT.w, GH = PT.h, CS = .027, N = GW * GH, PER = 34;
-    const input = Uint8Array.from(PT.cells, (c) => +c);                      // estados de entrada: 0 = color de la hoja (no se dibuja), 1..5 = azules
-    const NS = 6, COLORS = [null, new T.Color(0xe6ecf8), new T.Color(0xc3d0ea), new T.Color(0x8fa6d3), new T.Color(0x5878b3), new T.Color(0x1f3d7a)];
-    const X = (i) => (i % GW - (GW - 1) / 2) * CS, Y = (i) => ((GH - 1) / 2 - Math.floor(i / GW)) * CS;
-    // píxeles del autómata
-    const mesh = new T.InstancedMesh(new T.PlaneGeometry(CS * .94, CS * .94), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true }), N);
-    mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); mesh.frustumCulled = false; mesh.instanceColor = new T.InstancedBufferAttribute(new Float32Array(N * 3), 3); scene.add(mesh);
-    // rejilla del autómata
-    const seg = [], h = CS / 2;
-    for (let i = 0; i < N; i++) { const x = X(i), y = Y(i); seg.push(x - h, y - h, 0, x + h, y - h, 0, x + h, y - h, 0, x + h, y + h, 0); }
-    for (let i = 0; i < GW; i++) { const x = X(i) + h, y = -(GH * CS) / 2; seg.push(x, y, 0, x, -y, 0); }
-    const gg = new T.BufferGeometry(); gg.setAttribute('position', new T.BufferAttribute(new Float32Array(seg), 3));
-    const gridMat = new T.LineBasicMaterial({ color: 0xc3c9d4, transparent: true, opacity: 0 });   // rejilla muy tenue: con tantas celdas solo se insinúa const grid = new T.LineSegments(gg, gridMat); grid.position.z = .01; scene.add(grid);
-    let s = Uint8Array.from(input), R = rng(5), acc = 0, cyc = -1, order = null;
-    const dm = new T.Object3D();
-    const paint = (vis, assemble) => {
-      for (let i = 0; i < N; i++) {
-        const st = s[i], on = st > 0 && assemble(i) > 0;
-        dm.position.set(X(i), Y(i), .02); dm.scale.setScalar(on ? Math.max(.0001, assemble(i) * vis) : .0001); dm.updateMatrix(); mesh.setMatrixAt(i, dm.matrix);
-        if (st > 0) mesh.setColorAt(i, COLORS[st]);
-      }
-      mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
-    };
-    // regla de votación con memoria de la entrada (ancla) y sesgo hacia el estado de fondo
-    const step = (anchor, bias, noise, erode = 0) => {
-      const ns = new Uint8Array(N), w = new Float32Array(NS);
-      for (let i = 0; i < N; i++) {
-        const cx = i % GW, cy = (i / GW) | 0; w.fill(0);
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = cx + dx, y = cy + dy; if (x >= 0 && y >= 0 && x < GW && y < GH) w[s[y * GW + x]] += dx || dy ? 1 : 1.6; }
-        w[0] *= bias; let best = 0, bv = -1;
-        for (let k = 0; k < NS; k++) { const v = w[k] + R() * .35; if (v > bv) { bv = v; best = k; } }
-        if (R() < noise) best = (R() * NS) | 0;
-        if (R() < erode) best = 0;
-        if (R() < anchor) best = input[i];
-        ns[i] = best;
-      }
-      s = ns;
-    };
-    // Se graba cada paso del autómata (evolución y desarme); después esa misma secuencia se reproduce al revés
-    const rec = []; let recDone = false;
-    const STEPT = .13, T_RUN = 2.4, T_DIS = 10.5, T_END = 18, T_REV0 = 19.2, T_REV = 8;        // fases (unidades de la animación)
-    return (t, dt) => {
-      const c = Math.floor(t / PER), tc = t % PER;
-      if (c !== cyc) { cyc = c; s = Uint8Array.from(input); acc = 0; if (!recDone) { R = rng(11); rec.length = 0; } { const Ro = rng(3 + c); order = Float32Array.from({ length: N }, (_, i) => (i / GW | 0) / GH + Ro() * .22); } }
-      const fade = 1 - smooth((tc - PER + 1.2) / 1.1);
-      const asm = smooth(tc / 2.6);
-      const dis = clamp((tc - T_DIS) / (T_END - T_DIS));
-      gridMat.opacity = .16 * smooth(tc / 1.5) * fade;
-      if (tc > T_RUN && tc < T_END + .3) {
-        if (!recDone) {                                  // primera vuelta: se calcula el autómata en vivo y se guarda cada paso
-          acc += dt;
-          while (acc >= STEPT) {
-            acc -= STEPT;
-            if (tc < T_DIS) step(.4, 1.0, .004); else { const q = smooth(dis); step(Math.max(0, .4 - q * 1.4), 1 + q * 3, .004 * (1 - q), q * q * .22); }
-            rec.push(s);
-          }
-          if (tc >= T_END && rec.length) recDone = true;
-        } else {                                         // vueltas siguientes: se reproduce lo grabado, hacia adelante
-          s = rec[Math.min(rec.length - 1, Math.floor((tc - T_RUN) / STEPT))];
-        }
-      } else if (tc >= T_END + .3 && tc < T_REV0) {
-        s = rec.length ? rec[rec.length - 1] : s;       // queda solo el color de la hoja
-      }
-      // reproducción al revés: del color de la hoja de vuelta al retrato, pasando por los mismos estados
-      if (recDone && tc >= T_REV0) {
-        const k = clamp((tc - T_REV0) / T_REV), idx = Math.round((1 - k) * (rec.length - 1));
-        s = rec[Math.max(0, Math.min(rec.length - 1, idx))];
-      }
-      const prog = (i) => easeOut((asm * 1.35 - order[i]) / .25);
-      paint(fade, prog);
-      mesh.material.opacity = 1;
+      // 3) el mejor camino se vuelve un tubo y una bolita lo recorre
+      const run = clamp((tc - TB) / ((NL - 1) * .75 + .2));
+      tubes.forEach((tb, i) => {
+        const k = clamp(run * (NL - 1) - i); tb.m.visible = k > .001;
+        tb.m.scale.set(1, Math.max(.001, tb.len * smooth(k)), 1); tb.m.position.copy(tb.a).addScaledVector(tb.d, tb.len * smooth(k) / 2);
+      });
+      marker.visible = tc > TB && fade > .01;
+      const f = run * (NL - 1), i = Math.min(NL - 2, Math.floor(f)), u = f - i;
+      marker.position.lerpVectors(best[i].pos, best[i + 1].pos, smooth(u)); marker.position.z = .25;
+      ring.rotation.x = 0; ring.scale.setScalar(1 + .15 * Math.sin(t * 6));
+      g.rotation.y = .18 * Math.sin(t * .35) + m.x * .25; g.rotation.x = -.05 + m.y * .1;
     };
   });
 
