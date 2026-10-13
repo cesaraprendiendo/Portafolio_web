@@ -156,12 +156,15 @@
   // ---------- Ver más: los enlaces a PDF se activan al poner la ruta real en el href ----------
   $$('.btn-more').forEach((a) => a.addEventListener('click', (e) => { if (a.getAttribute('href') === '#') e.preventDefault(); }));
 
-  // ---------- Contacto: valida y prepara un correo ----------
+  // ---------- Contacto: valida y envía el formulario al formulario de n8n ----------
   (() => {
     const form = $('#contact-form'); if (!form) return;
     const btn = $('button', form), label = $('.btn-label', btn), status = $('.status', form);
     const TO = 'cesaraprendiendo@gmail.com';
-    const fields = ['nombre', 'email', 'mensaje'].map((k) => ({ k, el: form.elements[k], err: $('#err-' + k) }));
+    // Formulario de n8n (nodo Form Trigger): sus campos, en orden, son nombre, email y mensaje (field-0, field-1, field-2)
+    const N8N_FORM = 'https://servidor-n8n-n8n.e8xd0p.easypanel.host/form/91b55046-044d-47ac-8a34-527fbeda336f';
+    const KEYS = ['nombre', 'email', 'mensaje'];
+    const fields = KEYS.map((k) => ({ k, el: form.elements[k], err: $('#err-' + k) }));
     const EMAIL = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/;
     const rules = {
       nombre: (v) => (!v ? 'Escribe tu nombre.' : v.length < 2 ? 'El nombre es demasiado corto.' : ''),
@@ -174,18 +177,29 @@
       f.el.addEventListener('blur', () => { if (f.el.value.trim() || f.el.classList.contains('invalid')) check(f); });
       f.el.addEventListener('input', () => { if (f.el.classList.contains('invalid')) check(f); });
     });
-    form.addEventListener('submit', (e) => {
+    let sending = false;
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (sending) return;
       status.textContent = '';
       const ok = fields.map(check);
       if (ok.includes(false)) { status.textContent = 'Revisa los campos marcados.'; fields[ok.indexOf(false)].el.focus(); return; }
       const v = Object.fromEntries(fields.map((f) => [f.k, f.el.value.trim()]));
-      const subject = encodeURIComponent(`Contacto desde tu portafolio — ${v.nombre}`);
-      const body = encodeURIComponent(`${v.mensaje}\n\n— ${v.nombre}\n${v.email}`);
-      label.textContent = 'Abriendo tu correo…';
-      location.href = `mailto:${TO}?subject=${subject}&body=${body}`;
-      status.textContent = 'Si no se abrió tu correo, escríbeme directo a ' + TO;
-      setTimeout(() => { label.textContent = 'Preparar mensaje'; }, 3500);
+      // mismo formato que el formulario de n8n: multipart con un campo por pregunta
+      const data = new FormData();
+      KEYS.forEach((k, i) => { data.append('field-' + i, v[k]); data.append(k, v[k]); });
+      sending = true; btn.disabled = true; label.textContent = 'Enviando…';
+      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000);
+      try {
+        // no-cors: el navegador envía los datos aunque el servidor de n8n no permita leer la respuesta desde otro dominio
+        await fetch(N8N_FORM, { method: 'POST', body: data, mode: 'no-cors', signal: ctl.signal });
+        form.reset(); fields.forEach((f) => show(f, ''));
+        status.textContent = 'Mensaje enviado. ¡Gracias, te responderé pronto!';
+      } catch (err) {
+        status.textContent = 'No se pudo enviar el mensaje. Inténtalo de nuevo o escríbeme a ' + TO;
+      } finally {
+        clearTimeout(timer); sending = false; btn.disabled = false; label.textContent = 'Enviar mensaje';
+      }
     });
   })();
 })();
