@@ -430,75 +430,82 @@
     function tint(m, a, b, k) { m.color.setHex(a).lerp(tmp.setHex(b), k); }
   });
 
-  // ===== CONTACTO · autómata celular incrustado: una cuadrícula sobre una región aleatoria cuyo estado final es el color de la página =====
+  // ===== CONTACTO · autómata celular cuya entrada es un retrato en un solo canal azul, pixelado muy ligeramente.
+  // Ciclo: imagen azul → pixelado → el autómata evoluciona sobre los píxeles → se desarma hasta el color de la hoja (su estado atractor) → se arma de nuevo =====
   add('automata', () => {
-    const { scene } = base({ cam: [0, 0, 12], fov: 30, aspect: 1 });
-    const GW = 46, GH = 42, CS = .15, STEP = .12, PER = 28;
-    // estados: 0 = color de fondo de la hoja (no se dibuja), 1..3 = azules cada vez más oscuros
-    const COLORS = [null, new T.Color(0xa7b6d6), new T.Color(0x34508a), new T.Color(0x061331)];
-    const mesh = new T.InstancedMesh(new T.PlaneGeometry(CS * .88, CS * .88), new T.MeshBasicMaterial({ color: 0xffffff }), GW * GH);
-    mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); mesh.frustumCulled = false; scene.add(mesh);
-    mesh.instanceColor = new T.InstancedBufferAttribute(new Float32Array(GW * GH * 3), 3);
-    const gridMat = new T.LineBasicMaterial({ color: 0xc3c9d4, transparent: true, opacity: .6 });
-    let grid = null, region = new Uint8Array(GW * GH), s = new Uint8Array(GW * GH), R = rng(1), cyc = -1, acc = 0, g = 0;
-    const dm = new T.Object3D();
+    const { scene } = base({ cam: [0, 0, 12], fov: 30, aspect: .8 });
+    const PT = window.PORTRAIT; if (!PT) return () => {};
+    const GW = PT.w, GH = PT.h, CS = .027, N = GW * GH, PER = 34;
+    const input = Uint8Array.from(PT.cells, (c) => +c);                      // estados de entrada: 0 = color de la hoja (no se dibuja), 1..5 = azules
+    const NS = 6, COLORS = [null, new T.Color(0xe6ecf8), new T.Color(0xc3d0ea), new T.Color(0x8fa6d3), new T.Color(0x5878b3), new T.Color(0x1f3d7a)];
     const X = (i) => (i % GW - (GW - 1) / 2) * CS, Y = (i) => ((GH - 1) / 2 - Math.floor(i / GW)) * CS;
-    function build(seed) {
-      R = rng(seed);
-      // región aleatoria: unión de manchas con borde irregular
-      const blobs = Array.from({ length: 4 + Math.floor(R() * 3) }, () => ({ x: (.22 + R() * .56) * GW, y: (.22 + R() * .56) * GH, r: 6 + R() * 6 }));
-      for (let i = 0; i < GW * GH; i++) {
-        const cx = i % GW, cy = Math.floor(i / GW);
-        let v = 0; blobs.forEach((b) => { v += Math.exp(-((cx - b.x) ** 2 + (cy - b.y) ** 2) / (b.r * b.r)); });
-        region[i] = v + (R() - .5) * .3 > .6 ? 1 : 0;
-        s[i] = region[i] ? (R() < .18 ? 0 : 1 + Math.floor(R() * 3)) : 0;
-      }
-      // contorno de cada celda de la región (la cuadrícula)
-      const seg = [], h = CS / 2;
-      for (let i = 0; i < GW * GH; i++) if (region[i]) {
-        const x = X(i), y = Y(i);
-        seg.push(x - h, y - h, 0, x + h, y - h, 0, x + h, y - h, 0, x + h, y + h, 0, x + h, y + h, 0, x - h, y + h, 0, x - h, y + h, 0, x - h, y - h, 0);
-      }
-      if (grid) { scene.remove(grid); grid.geometry.dispose(); }
-      const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.BufferAttribute(new Float32Array(seg), 3));
-      grid = new T.LineSegments(geo, gridMat); scene.add(grid);
-    }
-    function paint() {
-      for (let i = 0; i < GW * GH; i++) {
-        const st = s[i], on = region[i] && st > 0;
-        dm.position.set(X(i), Y(i), .01); dm.scale.setScalar(on ? Math.max(.0001, g) : .0001); dm.updateMatrix(); mesh.setMatrixAt(i, dm.matrix);
-        if (on) mesh.setColorAt(i, COLORS[st]);
+    // píxeles del autómata
+    const mesh = new T.InstancedMesh(new T.PlaneGeometry(CS * .94, CS * .94), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true }), N);
+    mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); mesh.frustumCulled = false; mesh.instanceColor = new T.InstancedBufferAttribute(new Float32Array(N * 3), 3); scene.add(mesh);
+    // rejilla del autómata
+    const seg = [], h = CS / 2;
+    for (let i = 0; i < N; i++) { const x = X(i), y = Y(i); seg.push(x - h, y - h, 0, x + h, y - h, 0, x + h, y - h, 0, x + h, y + h, 0); }
+    for (let i = 0; i < GW; i++) { const x = X(i) + h, y = -(GH * CS) / 2; seg.push(x, y, 0, x, -y, 0); }
+    const gg = new T.BufferGeometry(); gg.setAttribute('position', new T.BufferAttribute(new Float32Array(seg), 3));
+    const gridMat = new T.LineBasicMaterial({ color: 0xc3c9d4, transparent: true, opacity: 0 });   // rejilla muy tenue: con tantas celdas solo se insinúa const grid = new T.LineSegments(gg, gridMat); grid.position.z = .01; scene.add(grid);
+    let s = Uint8Array.from(input), R = rng(5), acc = 0, cyc = -1, order = null;
+    const dm = new T.Object3D();
+    const paint = (vis, assemble) => {
+      for (let i = 0; i < N; i++) {
+        const st = s[i], on = st > 0 && assemble(i) > 0;
+        dm.position.set(X(i), Y(i), .02); dm.scale.setScalar(on ? Math.max(.0001, assemble(i) * vis) : .0001); dm.updateMatrix(); mesh.setMatrixAt(i, dm.matrix);
+        if (st > 0) mesh.setColorAt(i, COLORS[st]);
       }
       mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
-    }
-    function step(prog) {
-      const ns = new Uint8Array(GW * GH), w = [0, 0, 0, 0];
-      const pd = prog * prog * .3, pn = .025 * (1 - prog);
-      for (let i = 0; i < GW * GH; i++) {
-        if (!region[i]) continue;
-        const cx = i % GW, cy = Math.floor(i / GW);
-        w[0] = w[1] = w[2] = w[3] = 0;
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-          const x = cx + dx, y = cy + dy;
-          w[x < 0 || y < 0 || x >= GW || y >= GH || !region[y * GW + x] ? 0 : s[y * GW + x]]++;
-        }
-        w[0] *= 1.2; // sesgo hacia el color del fondo: es el estado al que tiende todo el autómata
-        let best = 0, bv = -1;
-        for (let k = 0; k < 4; k++) { const v = w[k] + R() * .3; if (v > bv) { bv = v; best = k; } }
-        if (R() < pn) best = Math.floor(R() * 4);
-        if (R() < pd) best = 0;
+    };
+    // regla de votación con memoria de la entrada (ancla) y sesgo hacia el estado de fondo
+    const step = (anchor, bias, noise, erode = 0) => {
+      const ns = new Uint8Array(N), w = new Float32Array(NS);
+      for (let i = 0; i < N; i++) {
+        const cx = i % GW, cy = (i / GW) | 0; w.fill(0);
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = cx + dx, y = cy + dy; if (x >= 0 && y >= 0 && x < GW && y < GH) w[s[y * GW + x]] += dx || dy ? 1 : 1.6; }
+        w[0] *= bias; let best = 0, bv = -1;
+        for (let k = 0; k < NS; k++) { const v = w[k] + R() * .35; if (v > bv) { bv = v; best = k; } }
+        if (R() < noise) best = (R() * NS) | 0;
+        if (R() < erode) best = 0;
+        if (R() < anchor) best = input[i];
         ns[i] = best;
       }
       s = ns;
-    }
+    };
+    // Se graba cada paso del autómata (evolución y desarme); después esa misma secuencia se reproduce al revés
+    const rec = []; let recDone = false;
+    const STEPT = .13, T_RUN = 2.4, T_DIS = 10.5, T_END = 18, T_REV0 = 19.2, T_REV = 8;        // fases (unidades de la animación)
     return (t, dt) => {
       const c = Math.floor(t / PER), tc = t % PER;
-      if (c !== cyc) { cyc = c; build(((Math.random() * 1e9) | 0) + c); acc = 0; paint(); }
-      g = smooth(tc / 1.2) * (1 - smooth((tc - PER + 1.8) / 1.6));
-      acc += dt;
-      if (tc < PER - 3) while (acc >= STEP) { acc -= STEP; step(clamp(tc / (PER - 9))); paint(); }
-      else paint();
-      gridMat.opacity = .6 * g;
+      if (c !== cyc) { cyc = c; s = Uint8Array.from(input); acc = 0; if (!recDone) { R = rng(11); rec.length = 0; } { const Ro = rng(3 + c); order = Float32Array.from({ length: N }, (_, i) => (i / GW | 0) / GH + Ro() * .22); } }
+      const fade = 1 - smooth((tc - PER + 1.2) / 1.1);
+      const asm = smooth(tc / 2.6);
+      const dis = clamp((tc - T_DIS) / (T_END - T_DIS));
+      gridMat.opacity = .16 * smooth(tc / 1.5) * fade;
+      if (tc > T_RUN && tc < T_END + .3) {
+        if (!recDone) {                                  // primera vuelta: se calcula el autómata en vivo y se guarda cada paso
+          acc += dt;
+          while (acc >= STEPT) {
+            acc -= STEPT;
+            if (tc < T_DIS) step(.4, 1.0, .004); else { const q = smooth(dis); step(Math.max(0, .4 - q * 1.4), 1 + q * 3, .004 * (1 - q), q * q * .22); }
+            rec.push(s);
+          }
+          if (tc >= T_END && rec.length) recDone = true;
+        } else {                                         // vueltas siguientes: se reproduce lo grabado, hacia adelante
+          s = rec[Math.min(rec.length - 1, Math.floor((tc - T_RUN) / STEPT))];
+        }
+      } else if (tc >= T_END + .3 && tc < T_REV0) {
+        s = rec.length ? rec[rec.length - 1] : s;       // queda solo el color de la hoja
+      }
+      // reproducción al revés: del color de la hoja de vuelta al retrato, pasando por los mismos estados
+      if (recDone && tc >= T_REV0) {
+        const k = clamp((tc - T_REV0) / T_REV), idx = Math.round((1 - k) * (rec.length - 1));
+        s = rec[Math.max(0, Math.min(rec.length - 1, idx))];
+      }
+      const prog = (i) => easeOut((asm * 1.35 - order[i]) / .25);
+      paint(fade, prog);
+      mesh.material.opacity = 1;
     };
   });
 

@@ -342,7 +342,7 @@
     const A = person(0x14327a), B = person(0x7c8fb8); B.rotation.y = Math.PI;
     window.Viz.lineArt(fs2);   // todo blanco con trazos gris claro
     // coreografía: se acercan caminando, A golpea a B, B retrocede y se inclina, y ambos se separan. s = tiempo del video (0..1)
-    let midX = 0;
+    let midX = 0; const footBox = new T.Box3(), footBox2 = new T.Box3();
     const poseAt = (s) => {
       let ax, bx, aa, ab, aL = -.15, bL = .1, la = 0, lb = 0, st;
       if (s < .2) { const w = s / .2; ax = lerp(-2.4, -.9, w); bx = lerp(2.3, .5, w); aa = .1 + .2 * Math.sin(s * 60); ab = .1 - .15 * Math.sin(s * 60); st = .4 * Math.sin(s * 60); }
@@ -356,6 +356,7 @@
       [A.legL, A.legR, B.legL, B.legR].forEach((l) => { l.el.rotation.z = -Math.abs(st) * 1.1 - .04; });
       A.upper.rotation.z = -la * 1.3; B.upper.rotation.z = lb * 1.3;                        // se inclinan por la cintura
       A.head.rotation.z = la * .5 + (fight ? .06 * Math.sin(s * 50) : 0); B.head.rotation.z = -lb * (fight ? 1.1 : .5) + (fight ? .1 * Math.sin(s * 50 + 1) : 0);   // B echa la cabeza hacia atrás al recibir el golpe
+      [A, B].forEach((p) => { p.position.y = 0; p.updateMatrixWorld(true); footBox.setFromObject(p.legL).union(footBox2.setFromObject(p.legR)); p.position.y = -footBox.min.y; });   // apoya los pies en la acera
     };
     const render = (w, h, bg, override) => {
       const tgt = new T.WebGLRenderTarget(w, h, { minFilter: T.LinearFilter, magFilter: T.LinearFilter, format: T.RGBAFormat }), out = new Uint8Array(w * h * 4);
@@ -403,7 +404,7 @@
       const m = new T.ShaderMaterial({
         uniforms: { map: { value: tex }, k: { value: 2.6 }, bias: { value: 3.6 }, uFade: { value: 1 } }, transparent: true,
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
-        fragmentShader: 'uniform sampler2D map; uniform float k; uniform float bias; uniform float uFade; varying vec2 vUv; void main(){ vec3 c = texture2D(map, vUv, bias).rgb; c = clamp(vec3(1.) - (vec3(1.) - c) * k, 0., 1.); gl_FragColor = vec4(c, uFade); }',
+        fragmentShader: 'uniform sampler2D map; uniform float k; uniform float bias; uniform float uFade; varying vec2 vUv; void main(){ float l = dot(texture2D(map, vUv).rgb, vec3(.333)); gl_FragColor = vec4(mix(vec3(.50, .03, .05), vec3(.93, .14, .14), smoothstep(.35, 1., l)), uFade); }',
       });
       Object.defineProperty(m, 'opacity', { get() { return this.uniforms.uFade.value; }, set(v) { this.uniforms.uFade.value = v; } });
       return m;
@@ -510,7 +511,7 @@
       const live = !inA;
       if (live) { poseAt(tauV); setCam(fc, tauV); const cam = tg < 3.8 && !inP4 ? (viewCam(tg, tauV), vc) : fc; liveRender(rtBig, cam); }
       const fi = tauV * (NFR - 1), censorTau = inP4 && tauV > 3 / 14 - .015 && tauV < 12 / 14 - .005;
-      // (el desenfoque se calcula en el shader de liveC con los mipmaps de rtBig)
+      // (la censura en rojo se calcula en el shader de liveC sobre rtBig)
       liveN.opacity = liveC.opacity = gAll; rec.visible = live && (inP4 ? tauV > 0 : tg > 3.4); rec.material.opacity = gAll * (.35 + .65 * (Math.sin(t * 7) > 0 ? 1 : 0));
       // frames estáticos y bordes
       const stripAlpha = inP4 ? lerp(1, .18, smooth((tg - TP) / .8)) : 1;
