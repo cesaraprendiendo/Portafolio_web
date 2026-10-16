@@ -348,3 +348,12 @@ ol, ul { list-style: none; }
 
 @media (max-width: 520px) { .chat-fab, .chat-box { right: 16px; bottom: 16px; } }
 @media (prefers-reduced-motion: reduce) { .chat-backdrop, .chat-box, .chat-fab, .chat-box > * { transition-duration: .01s !important; transition-delay: 0s !important; } .msg.typing span { animation: none; } }
+
+/* ===== Móvil: la altura del escenario de la regla de escritorio (74vh) tapaba los textos ===== */
+@media (max-width: 900px) {
+  .seq { --stage-h: 36vh; }
+  .stage { top: 66px; }
+  .seq .steps { padding-top: calc(var(--stage-h) + 12px); }
+  .step { min-height: calc(100vh - 66px - var(--stage-h) - 24px); padding-top: 12px; padding-bottom: 28px; }
+  .step .pt-body p { font-size: 15px; }
+}
